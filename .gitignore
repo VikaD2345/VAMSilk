@@ -1,0 +1,6 @@
+node_modules
+dist
+_previews
+_crops
+_*.py
+.DS_Store

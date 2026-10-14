@@ -10,6 +10,7 @@ const CHATS_KEY = 'vamsilk-chats-v3'
 const PREFS_KEY = 'vamsilk-prefs'
 const SIGNALS_KEY = 'vamsilk-signals'
 const NOTIFY_KEY = 'vamsilk-notify'
+const TOKEN_KEY = 'vamsilk-token'
 
 function readJson(key, fallback) {
   try {
@@ -33,6 +34,29 @@ function bumpChat(list, chatId, patch) {
   const pinned = rest.filter((chat) => chat.pinned)
   const loose = rest.filter((chat) => !chat.pinned)
   return group ? [group, ...pinned, ...loose] : [...pinned, ...loose]
+}
+
+function toFrontendUser(apiUser) {
+  return {
+    nick: apiUser.username,
+    name: apiUser.displayName,
+    handle: `@${apiUser.username}`,
+    bio: 'Новая нить в паутине VAMSilk.',
+    threads: 1,
+    days: 1,
+    replica: 67,
+  }
+}
+
+async function authRequest(path, body) {
+  const response = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.error || 'Сервер не ответил.')
+  return data
 }
 
 export function AppProvider({ children }) {
@@ -77,39 +101,32 @@ export function AppProvider({ children }) {
   }, [readReceipts, presence])
 
   const api = useMemo(() => {
-    function login(nick, password) {
-      const found = users.find((item) => item.nick.trim().toLowerCase() === nick.trim().toLowerCase())
-      if (!found) return { ok: false, error: 'Такой нити нет. Сплети аккаунт.' }
-      if (found.password !== password) return { ok: false, error: 'Нить не пускает чужих.' }
-      setUser(found)
-      return { ok: true }
+    async function login(nick, password) {
+      try {
+        const data = await authRequest('/api/auth/login', { username: nick, password })
+        localStorage.setItem(TOKEN_KEY, data.token)
+        setUser(toFrontendUser(data.user))
+        return { ok: true }
+      } catch (error) {
+        return { ok: false, error: error.message }
+      }
     }
 
-    function register({ nick, name, password }) {
-      const cleanNick = nick.trim()
-      const cleanName = name.trim()
-      if (cleanNick.length < 2 || cleanName.length < 1 || password.length < 2) {
-        return { ok: false, error: 'Нить слишком тонкая. Заполни все поля.' }
+    async function register({ nick, name, password }) {
+      try {
+        const data = await authRequest('/api/auth/register', { username: nick, displayName: name, password })
+        localStorage.setItem(TOKEN_KEY, data.token)
+        const next = toFrontendUser(data.user)
+        setUsers((prev) => [...prev, next])
+        setUser(next)
+        return { ok: true }
+      } catch (error) {
+        return { ok: false, error: error.message }
       }
-      if (users.some((item) => item.nick.toLowerCase() === cleanNick.toLowerCase())) {
-        return { ok: false, error: 'Эта нить уже занята.' }
-      }
-      const next = {
-        nick: cleanNick,
-        password,
-        name: cleanName,
-        handle: `@${cleanNick.toLowerCase()}`,
-        bio: 'Новая нить в паутине VAMSilk. Реплика №67 ещё тёплая.',
-        threads: 1,
-        days: 1,
-        replica: 67,
-      }
-      setUsers((prev) => [...prev, next])
-      setUser(next)
-      return { ok: true }
     }
 
     function logout() {
+      localStorage.removeItem(TOKEN_KEY)
       setUser(null)
     }
 

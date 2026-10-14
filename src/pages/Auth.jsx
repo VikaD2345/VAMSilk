@@ -24,9 +24,9 @@ export default function Auth() {
     window.setTimeout(() => setShake(false), 420)
   }
 
-  function onSubmit(event) {
+  async function onSubmit(event) {
     event.preventDefault()
-    const result = mode === 'login' ? login(nick, password) : register({ nick, name, password })
+    const result = await (mode === 'login' ? login(nick, password) : register({ nick, name, password }))
     if (!result.ok) {
       fail(result.error)
       return
@@ -102,11 +102,10 @@ export default function Auth() {
           <button className="btn-hot btn-wide" type="submit">
             {mode === 'login' ? 'Зацепиться' : 'Сплести'}
           </button>
-          <p className="auth-note">Реплика №67 запоминает, кто на нити</p>
+          <p className="auth-note">Аккаунт и пароль надёжно хранятся на сервере</p>
           <button type="button" className="text-link" onClick={() => switchMode(mode === 'login' ? 'register' : 'login')}>
             {mode === 'login' ? 'Нет нити? Сплести аккаунт' : 'Уже на нити? Зацепиться'}
           </button>
-          {mode === 'login' ? <p className="demo-note">Демо-нить: Ты · пароль 67</p> : null}
         </form>
       </div>
     </div>

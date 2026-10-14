@@ -62,6 +62,10 @@ func main() {
 	log.Fatal(http.ListenAndServe(":"+addr, cors(mux)))
 }
 
+func (s *server) health(w http.ResponseWriter, r *http.Request) {
+	respond(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
 func createTables(db *sql.DB) error {
 	_, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS users (

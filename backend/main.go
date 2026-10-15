@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -60,10 +61,33 @@ func main() {
 	mux.HandleFunc("GET /api/users", s.auth(s.users))
 	mux.HandleFunc("GET /api/messages", s.auth(s.messages))
 	mux.HandleFunc("POST /api/messages", s.auth(s.sendMessage))
+	if staticDir := os.Getenv("STATIC_DIR"); staticDir != "" {
+		mux.Handle("/", spa(staticDir))
+	} else {
+		mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+			respond(w, http.StatusOK, map[string]string{"service": "VAMSilk API", "health": "/health"})
+		})
+	}
 
 	addr := env("PORT", "8080")
 	log.Printf("VAMSilk API runs on http://localhost:%s", addr)
 	log.Fatal(http.ListenAndServe(":"+addr, cors(mux)))
+}
+
+// spa serves the React build in production. Unknown non-API paths return index.html,
+// so browser routing keeps working after a page refresh.
+func spa(directory string) http.Handler {
+	files := http.FileServer(http.Dir(directory))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := filepath.Clean(strings.TrimPrefix(r.URL.Path, "/"))
+		if path != "." && !strings.HasPrefix(path, "..") {
+			if _, err := os.Stat(filepath.Join(directory, path)); err == nil {
+				files.ServeHTTP(w, r)
+				return
+			}
+		}
+		http.ServeFile(w, r, filepath.Join(directory, "index.html"))
+	})
 }
 
 func createTables(db *sql.DB) error {

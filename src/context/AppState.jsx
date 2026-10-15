@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import { DEMO_USER, createInitialChats, directory, initialSignals, nowLabel } from '../data'
+import { DEMO_USER, createInitialChats, directory as demoDirectory, initialSignals, nowLabel } from '../data'
 
 const AppStateContext = createContext(null)
 
@@ -38,6 +38,7 @@ function bumpChat(list, chatId, patch) {
 
 function toFrontendUser(apiUser) {
   return {
+    id: apiUser.id,
     nick: apiUser.username,
     name: apiUser.displayName,
     handle: `@${apiUser.username}`,
@@ -45,6 +46,25 @@ function toFrontendUser(apiUser) {
     threads: 1,
     days: 1,
     replica: 67,
+  }
+}
+
+function toDirectoryPerson(apiUser) {
+  const tones = ['hot', 'cool', 'violet']
+  const name = apiUser.displayName || apiUser.username
+  return {
+    id: `user-${apiUser.id}`,
+    backendUserId: apiUser.id,
+    name,
+    letter: name.slice(0, 1).toUpperCase(),
+    tone: tones[apiUser.id % tones.length],
+    online: false,
+    handle: `@${apiUser.username}`,
+    about: 'Зарегистрирован в VAMSilk',
+    lastSeen: 'недавно зарегистрировался',
+    threads: 0,
+    streak: 0,
+    freq: 'new',
   }
 }
 
@@ -63,6 +83,7 @@ export function AppProvider({ children }) {
   const [theme, setTheme] = useState(() => localStorage.getItem(THEME_KEY) || 'light')
   const [users, setUsers] = useState(() => readJson(USERS_KEY, [DEMO_USER]))
   const [user, setUser] = useState(() => readJson(SESSION_KEY, null))
+  const [directory, setDirectory] = useState(demoDirectory)
   const [chats, setChats] = useState(() => readJson(CHATS_KEY, createInitialChats()))
   const [signals, setSignals] = useState(() => readJson(SIGNALS_KEY, initialSignals))
   const [notificationsOn, setNotificationsOn] = useState(() => readJson(NOTIFY_KEY, true))
@@ -99,6 +120,29 @@ export function AppProvider({ children }) {
   useEffect(() => {
     localStorage.setItem(PREFS_KEY, JSON.stringify({ readReceipts, presence }))
   }, [readReceipts, presence])
+
+  // Contacts are loaded from the common Go database after a user signs in.
+  useEffect(() => {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (!token || !user?.nick) return
+    let cancelled = false
+
+    fetch('/api/users', { headers: { Authorization: `Bearer ${token}` } })
+      .then((response) => (response.ok ? response.json() : []))
+      .then((apiUsers) => {
+        if (cancelled || !Array.isArray(apiUsers)) return
+        const currentNick = user.nick.toLowerCase()
+        const registered = apiUsers
+          .filter((apiUser) => apiUser.username.toLowerCase() !== currentNick)
+          .map(toDirectoryPerson)
+        setDirectory([...demoDirectory, ...registered])
+      })
+      .catch(() => {
+        // The static demo contacts remain visible if the API is temporarily unavailable.
+      })
+
+    return () => { cancelled = true }
+  }, [user?.nick])
 
   const api = useMemo(() => {
     async function login(nick, password) {
@@ -223,6 +267,7 @@ export function AppProvider({ children }) {
         threads: person.threads,
         streak: person.streak,
         freq: person.freq,
+        backendUserId: person.backendUserId,
         pinned: false,
         muted: false,
       }

@@ -3,7 +3,6 @@ import { useSearchParams } from 'react-router-dom'
 import Spider from '../components/Spider'
 import { GlitchTitle } from '../components/Brand'
 import { IconClip, IconClose, IconPhone, IconPlus, IconSearch, IconStar } from '../components/Icons'
-import { directory } from '../data'
 import { useApp } from '../context/AppState'
 
 const emojis = ['🕸️', '✨', '🔥', '💜', '👋']
@@ -32,6 +31,7 @@ export default function Chats() {
     activeChatId,
     readReceipts,
     presence,
+    directory,
   } = useApp()
   const [params, setParams] = useSearchParams()
   const [query, setQuery] = useState('')

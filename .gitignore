@@ -1,6 +1,7 @@
 node_modules
 dist
 backend/vamsilk.db
+backend/vamsilk-backend.exe
 _previews
 _crops
 _*.py
